@@ -1,4 +1,4 @@
-# Rag-System
+# Rag-Systems
 
 RAG System Development Plan
 
