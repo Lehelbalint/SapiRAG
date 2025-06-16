@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  #MinIO (S3-kompatibilis tár)
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    ports:
+      - "9000:9000"   # API
+      - "9001:9001"   # Web UI
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+
+  #PostgreSQL + pgvector
+  postgres:
+    image: ankane/pgvector
+    container_name: pgvector-db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: embeddings_db
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  # # Ollama
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: ollama
+  #   ports:
+  #     - "11434:11434"          # HTTP API
+  #   volumes:
+  #     - ollama_data:/root/.ollama
+  #   # GPU-val:
+  #   # runtime: nvidia
+  #   # environment:
+  #   #   - NVIDIA_VISIBLE_DEVICES=all
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+  #     interval: 30s
+  #     timeout: 5s
+  #     retries: 5
+  #   restart: unless-stopped
+
+volumes:
+  minio_data:
+  pgdata:
+  # ollama_data:

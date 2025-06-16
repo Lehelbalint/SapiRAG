@@ -1,95 +1,170 @@
-import json
-import os
+"""
+Search utilities for performing keyword, embedding, and hybrid searches
+on PDF documents stored in a PostgreSQL database.
+"""
+
 import re
-import numpy as np
-from sklearn.metrics.pairwise import cosine_similarity
+from typing import Any, List, Tuple
+from psycopg2.extensions import connection as PGConnection
 from sentence_transformers import SentenceTransformer
-import requests
+from sentence_transformers.cross_encoder import CrossEncoder
 
-model = SentenceTransformer('all-MiniLM-L6-v2')
+BI_MODEL_NAME = "paraphrase-multilingual-mpnet-base-v2"
+CROSS_ENCODER_MODEL = "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1"
 
-def load_embeddings_data(filename: str):
-    base = os.path.splitext(os.path.basename(filename))[0]
-    path = os.path.join("outputs", f"{base}_output.json")
+bi_model = SentenceTransformer(BI_MODEL_NAME)
+reranker = CrossEncoder(CROSS_ENCODER_MODEL)
 
-    if not os.path.exists(path):
-        raise FileNotFoundError(f"❌ No such embedding file: {path}")
-
-    with open(path, encoding="utf-8") as f:
-        data = json.load(f)
-
-    texts = [f"{item['header']}\n{item['body']}" for item in data]
-    embeddings = np.array([item['embedding'] for item in data])
-    return data, embeddings
-
-def keyword_search(query: str, filename: str, top_k: int = 5):
-    base = os.path.splitext(os.path.basename(filename))[0]
-    path = os.path.join("outputs", f"{base}_output.json")
-
-    if not os.path.exists(path):
-        return {"error": f"No data found for file {filename}"}
-
-    with open(path, encoding="utf-8") as f:
-        data = json.load(f)
-
-    pattern = re.compile(re.escape(query), re.IGNORECASE)
-    matches = [
-        {"header": item["header"], "body": item["body"]}
-        for item in data
-        if pattern.search(item["header"]) or pattern.search(item["body"])
-    ]
-
-    return {"matches": matches[:top_k]}
-
-def embedding_search(query: str, filename: str, top_k: int = 5):
-    data, embeddings = load_embeddings_data(filename)
-
-    query_emb = model.encode([query])
-    scores = cosine_similarity(query_emb, embeddings)[0]
-    top_indices = scores.argsort()[::-1][:top_k]
-
-    results = []
-    for idx in top_indices:
-        results.append({
-            "header": data[idx]['header'],
-            "body": data[idx]['body'],
-            "score": float(scores[idx])
-        })
-    return {"results": results}
+#Helpers
+def _encode_text(text: str) -> List[float]:
+    embeddings = bi_model.encode([text], normalize_embeddings=True)
+    return embeddings[0].tolist()
 
 
-def rag_answer_local(question: str, filename: str, top_k: int = 3) -> str:
-    from search_utils import load_embeddings_data
+def _extract_terms(query: str) -> List[str]:
+    return re.findall(r"\w+", query.lower(), flags=re.UNICODE)
 
-    data, embeddings = load_embeddings_data(filename)
-    from sentence_transformers import SentenceTransformer
-    from sklearn.metrics.pairwise import cosine_similarity
-    import numpy as np
 
-    model = SentenceTransformer('all-MiniLM-L6-v2')
-    query_emb = model.encode([question])
-    scores = cosine_similarity(query_emb, embeddings)[0]
-    top_indices = scores.argsort()[::-1][:top_k]
+def _build_ts_query(terms: List[str]) -> str:
+    return " & ".join(f"{t}:*" for t in terms) if terms else ""
 
-    context = ""
-    for idx in top_indices:
-        context += f"{data[idx]['header']}\n{data[idx]['body']}\n\n"
 
-    prompt = f"""
-    Answer the following question based on the given context. Be concise and specific.
+def _execute_query(
+    conn: PGConnection,
+    sql: str,
+    params: Tuple[Any, ...]
+) -> List[Tuple[str, str, float]]:
+    with conn.cursor() as cur:
+        cur.execute(sql, params)
+        return cur.fetchall()
 
-    Context:
-    {context}
 
-    Question: {question}
-    Answer:
-    """
+def keyword_search(
+    conn: PGConnection,
+    query: str,
+    filename: str,
+    top_k: int = 10
+) -> List[Tuple[str, str, float]]:
+    terms = _extract_terms(query)
+    ts_query = _build_ts_query(terms)
+    if not ts_query:
+        return []
 
-    response = requests.post(
-        "http://localhost:11434/api/generate",
-        json={"model": "mistral", "prompt": prompt, "stream": False}
+    sql = (
+        "SELECT header, body,"
+        " ts_rank_cd("
+        "   to_tsvector('hungarian', unaccent(header || ' ' || body)),"
+        "   to_tsquery('hungarian', %s)"
+        " ) AS rank"
+        " FROM documents"
+        " WHERE filename = %s"
+        "   AND to_tsvector('hungarian', unaccent(header || ' ' || body))"
+        "       @@ to_tsquery('hungarian', %s)"
+        " ORDER BY rank DESC"
+        " LIMIT %s;"
+    )
+    params = (ts_query, filename, ts_query, top_k)
+    return _execute_query(conn, sql, params)
+
+
+def embedding_search(
+    conn: PGConnection,
+    query: str,
+    filename: str,
+    top_k: int = 10 
+) -> List[Tuple[str, str, float]]: 
+    q_emb = _encode_text(query)
+    sql = (
+        "SELECT header, body,"
+        " 1 - (embedding <=> %s::vector) AS score"
+        " FROM documents"
+        " WHERE filename = %s"
+        " ORDER BY score DESC"
+        " LIMIT %s;"
+    )
+    params = (q_emb, filename, top_k)
+    return _execute_query(conn, sql, params) 
+
+def hybrid_search(
+    conn: PGConnection,
+    query: str,
+    filename: str,
+    top_k: int = 15
+) -> List[Tuple[str, str, float]]:
+    vec_results = embedding_search(conn, query, filename, top_k)
+    kw_results = keyword_search(conn, query, filename, top_k)
+
+    candidates = { (h, b): score for h, b, score in vec_results + kw_results }
+
+    texts = [f"{h}\n{b}" for (h, b) in candidates.keys()]
+    rerank_scores = reranker.predict([(query, t) for t in texts])
+
+    combined = list(zip(candidates.items(), rerank_scores))
+    combined.sort(key=lambda x: x[1], reverse=True)
+
+    return [ (h, b, float(score)) for ((h, b), _), score in combined[:top_k] ]
+
+
+def keyword_search_workspace(
+    conn: PGConnection,
+    query: str,
+    workspace: str,
+    top_k: int = 10 
+) -> List[Tuple[str, str, float]]:
+    terms = _extract_terms(query) 
+    ts_query = _build_ts_query(terms) 
+    if not ts_query:
+        return []
+
+    sql = (
+        "SELECT header, body,"
+        " ts_rank_cd("
+        "   to_tsvector('hungarian', unaccent(header || ' ' || body)),"
+        "   to_tsquery('hungarian', %s)"
+        " ) AS rank"
+        " FROM documents"
+        " WHERE workspace = %s"
+        "   AND to_tsvector('hungarian', unaccent(header || ' ' || body))"
+        "       @@ to_tsquery('hungarian', %s)"
+        " ORDER BY rank DESC"
+        " LIMIT %s;"
+    )
+    params = (ts_query, workspace, ts_query, top_k)
+    return _execute_query(conn, sql, params)
+
+
+def embedding_search_workspace(
+    conn: PGConnection,
+    query: str,
+    workspace: str,
+    top_k: int = 10
+) -> List[Tuple[str, str, float]]:
+    q_emb = _encode_text(query)
+    sql = (
+        "SELECT header, body,"
+        " 1 - (embedding <=> %s::vector) AS score"
+        " FROM documents"
+        " WHERE workspace = %s"
+        " ORDER BY score DESC"
+        " LIMIT %s;"
+    )
+    params = (q_emb, workspace, top_k)
+    return _execute_query(conn, sql, params)
+
+
+def hybrid_search_workspace(
+    conn: PGConnection,
+    query: str,
+    workspace: str,
+    top_k: int = 10
+) -> List[Tuple[str, str, float]]:
+    kw_results = keyword_search_workspace(conn, query, workspace, top_k)
+    emb_results = embedding_search_workspace(conn, query, workspace, top_k)
+
+    merged = { (h, b): score for h, b, score in kw_results + emb_results }
+    sorted_results = sorted(
+        [(h, b, score) for (h, b), score in merged.items()],
+        key=lambda x: x[2], reverse=True
     )
 
-    response.raise_for_status()
-    result = response.json()
-    return result["response"].strip()
+    return sorted_results[:top_k]

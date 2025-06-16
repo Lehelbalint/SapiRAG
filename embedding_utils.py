@@ -1,35 +1,60 @@
-import fitz
-import re
-import json
-import os
+'''
+Utilities for generating embeddings from PDF documents.
+'''
+
+import fitz  # PyMuPDF for reading PDFs
+import tiktoken
 from sentence_transformers import SentenceTransformer
 
-model = SentenceTransformer('all-MiniLM-L6-v2') 
+ENCODING_NAME = "cl100k_base"
+MODEL_NAME = "paraphrase-multilingual-mpnet-base-v2"
+#MODEL_NAME = SentenceTransformer("all-MiniLM-L6-v2")
+MAX_TOKENS = 600
+OVERLAP_TOKENS = 100
 
-def generate_embeddings_from_pdf(filename: str, output_path: str) -> None:
-    doc = fitz.open(filename)
-    text = ""
-    for page in doc:
-        text += page.get_text()
+tokenizer = tiktoken.get_encoding(ENCODING_NAME)
+model = SentenceTransformer(MODEL_NAME)
 
-    paragraphs = re.split(r'\n\s*(\d+\.? ?§.*?)\n', text)
-    structured = []
-    if len(paragraphs) > 1:
-        for i in range(1, len(paragraphs) - 1, 2):
-            header = paragraphs[i].strip()
-            body = paragraphs[i + 1].strip()
-            structured.append((header, body))
+def count_tokens(text: str) -> int:
+    return len(tokenizer.encode(text))
 
-    texts = [f"{h}\n{b}" for h, b in structured]
-    embeddings = model.encode(texts)
 
-    output = []
-    for (header, body), embedding in zip(structured, embeddings):
-        output.append({
-            "header": header,
-            "body": body,
-            "embedding": embedding.tolist()
+def split_into_chunks(
+    text: str,
+    max_tokens: int = MAX_TOKENS,
+    overlap: int = OVERLAP_TOKENS
+) -> list[str]:
+    words = text.split()
+    chunks: list[str] = []
+    buffer: list[str] = []
+
+    for word in words:
+        buffer.append(word)
+        if count_tokens(" ".join(buffer)) > max_tokens:
+            chunks.append(" ".join(buffer[:-1]))
+            buffer = buffer[-overlap:]
+
+    if buffer:
+        chunks.append(" ".join(buffer))
+
+    return chunks
+
+
+def generate_embeddings_from_pdf(pdf_path: str) -> list[dict[str, any]]:
+    document = fitz.open(pdf_path)
+    pages_text = [page.get_text() for page in document][2:]
+    full_text = "\n".join(pages_text)
+
+    chunks = split_into_chunks(full_text)
+
+    embeddings = model.encode(chunks, normalize_embeddings=True)
+
+    records: list[dict[str, any]] = []
+    for idx, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+        records.append({
+            "header": f"chunk-{idx}",
+            "body": chunk,
+            "embedding": embedding.tolist(),
         })
 
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(output, f, indent=2, ensure_ascii=False)   
+    return records

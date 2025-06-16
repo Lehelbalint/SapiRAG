@@ -1,0 +1,5 @@
+.env
+__pycache__
+__pycache__/embedding_utils.cpython-313.pyc
+__pycache__/fastApi.cpython-313.pyc
+__pycache__/search_utils.cpython-313.pyc
