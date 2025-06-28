@@ -1,8 +1,4 @@
-'''
-Utilities for generating embeddings from PDF documents.
-'''
-
-import fitz  # PyMuPDF for reading PDFs
+import fitz 
 import tiktoken
 from sentence_transformers import SentenceTransformer
 
@@ -22,8 +18,7 @@ def count_tokens(text: str) -> int:
 def split_into_chunks(
     text: str,
     max_tokens: int = MAX_TOKENS,
-    overlap: int = OVERLAP_TOKENS
-) -> list[str]:
+    overlap: int = OVERLAP_TOKENS) -> list[str]:
     words = text.split()
     chunks: list[str] = []
     buffer: list[str] = []

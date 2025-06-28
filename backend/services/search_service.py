@@ -1,55 +1,19 @@
-"""
-Search utilities for performing keyword, embedding, and hybrid searches
-on PDF documents stored in a PostgreSQL database.
-"""
-
-import re
 from typing import Any, List, Tuple
 from psycopg2.extensions import connection as PGConnection
-from sentence_transformers import SentenceTransformer
-from sentence_transformers.cross_encoder import CrossEncoder
+from sentence_transformers import CrossEncoder
+from utils.helpers import extract_terms ,encode_text ,build_ts_query
 
-BI_MODEL_NAME = "paraphrase-multilingual-mpnet-base-v2"
-CROSS_ENCODER_MODEL = "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1"
-
-bi_model = SentenceTransformer(BI_MODEL_NAME)
-reranker = CrossEncoder(CROSS_ENCODER_MODEL)
-
-#Helpers
-def _encode_text(text: str) -> List[float]:
-    embeddings = bi_model.encode([text], normalize_embeddings=True)
-    return embeddings[0].tolist()
-
-
-def _extract_terms(query: str) -> List[str]:
-    return re.findall(r"\w+", query.lower(), flags=re.UNICODE)
-
-
-def _build_ts_query(terms: List[str]) -> str:
-    return " & ".join(f"{t}:*" for t in terms) if terms else ""
-
-
-def _execute_query(
-    conn: PGConnection,
-    sql: str,
-    params: Tuple[Any, ...]
-) -> List[Tuple[str, str, float]]:
-    with conn.cursor() as cur:
-        cur.execute(sql, params)
-        return cur.fetchall()
-
+reranker = CrossEncoder("cross-encoder/mmarco-mMiniLMv2-L12-H384-v1")
 
 def keyword_search(
     conn: PGConnection,
     query: str,
     filename: str,
-    top_k: int = 10
-) -> List[Tuple[str, str, float]]:
-    terms = _extract_terms(query)
-    ts_query = _build_ts_query(terms)
+    top_k: int = 10) -> List[Tuple[str, str, float]]:
+    terms = extract_terms(query)
+    ts_query = build_ts_query(terms)
     if not ts_query:
         return []
-
     sql = (
         "SELECT header, body,"
         " ts_rank_cd("
@@ -73,7 +37,7 @@ def embedding_search(
     filename: str,
     top_k: int = 10 
 ) -> List[Tuple[str, str, float]]: 
-    q_emb = _encode_text(query)
+    q_emb = encode_text(query)
     sql = (
         "SELECT header, body,"
         " 1 - (embedding <=> %s::vector) AS score"
@@ -111,8 +75,8 @@ def keyword_search_workspace(
     workspace: str,
     top_k: int = 10 
 ) -> List[Tuple[str, str, float]]:
-    terms = _extract_terms(query) 
-    ts_query = _build_ts_query(terms) 
+    terms = extract_terms(query) 
+    ts_query = build_ts_query(terms) 
     if not ts_query:
         return []
 
@@ -139,7 +103,7 @@ def embedding_search_workspace(
     workspace: str,
     top_k: int = 10
 ) -> List[Tuple[str, str, float]]:
-    q_emb = _encode_text(query)
+    q_emb = encode_text(query)
     sql = (
         "SELECT header, body,"
         " 1 - (embedding <=> %s::vector) AS score"
@@ -168,3 +132,13 @@ def hybrid_search_workspace(
     )
 
     return sorted_results[:top_k]
+
+
+def _execute_query(
+    conn: PGConnection,
+    sql: str,
+    params: Tuple[Any, ...]
+) -> List[Tuple[str, str, float]]:
+    with conn.cursor() as cur:
+        cur.execute(sql, params)
+        return cur.fetchall()
