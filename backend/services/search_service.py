@@ -6,57 +6,61 @@ from utils.helpers import extract_terms ,encode_text ,build_ts_query
 reranker = CrossEncoder("cross-encoder/mmarco-mMiniLMv2-L12-H384-v1")
 
 def keyword_search(
-    conn: PGConnection,
-    query: str,
-    filename: str,
-    top_k: int = 10) -> List[Tuple[str, str, float]]:
+        conn: PGConnection,
+        query: str,
+        workspace: str,
+        filename: str,
+        top_k: int = 10
+) -> List[Tuple[str, str, str, float]]:
     terms = extract_terms(query)
     ts_query = build_ts_query(terms)
     if not ts_query:
         return []
     sql = (
-        "SELECT header, body,"
+        "SELECT header, body, filename,"
         " ts_rank_cd("
         "   to_tsvector('hungarian', unaccent(header || ' ' || body)),"
         "   to_tsquery('hungarian', %s)"
         " ) AS rank"
         " FROM documents"
-        " WHERE filename = %s"
+        " WHERE filename = %s AND workspace= %s"
         "   AND to_tsvector('hungarian', unaccent(header || ' ' || body))"
         "       @@ to_tsquery('hungarian', %s)"
         " ORDER BY rank DESC"
         " LIMIT %s;"
     )
-    params = (ts_query, filename, ts_query, top_k)
+    params = (ts_query, filename, workspace, ts_query, top_k)
     return _execute_query(conn, sql, params)
 
 
 def embedding_search(
     conn: PGConnection,
     query: str,
+    workspace: str,
     filename: str,
     top_k: int = 10 
-) -> List[Tuple[str, str, float]]: 
+) -> List[Tuple[str, str, str, float]]: 
     q_emb = encode_text(query)
     sql = (
-        "SELECT header, body,"
+        "SELECT header, body, filename,"
         " 1 - (embedding <=> %s::vector) AS score"
         " FROM documents"
-        " WHERE filename = %s"
+        " WHERE filename = %s AND workspace= %s"
         " ORDER BY score DESC"
         " LIMIT %s;"
     )
-    params = (q_emb, filename, top_k)
+    params = (q_emb, filename, workspace, top_k)
     return _execute_query(conn, sql, params) 
 
 def hybrid_search(
     conn: PGConnection,
     query: str,
+    workpace: str,
     filename: str,
     top_k: int = 15
-) -> List[Tuple[str, str, float]]:
-    vec_results = embedding_search(conn, query, filename, top_k)
-    kw_results = keyword_search(conn, query, filename, top_k)
+) -> List[Tuple[str, str,str, float]]:
+    vec_results = embedding_search(conn, query, filename, workpace, top_k)
+    kw_results = keyword_search(conn, query, filename, workpace, top_k)
 
     candidates = { (h, b): score for h, b, score in vec_results + kw_results }
 
@@ -81,7 +85,7 @@ def keyword_search_workspace(
         return []
 
     sql = (
-        "SELECT header, body,"
+        "SELECT header, body, filename,"
         " ts_rank_cd("
         "   to_tsvector('hungarian', unaccent(header || ' ' || body)),"
         "   to_tsquery('hungarian', %s)"
@@ -105,7 +109,7 @@ def embedding_search_workspace(
 ) -> List[Tuple[str, str, float]]:
     q_emb = encode_text(query)
     sql = (
-        "SELECT header, body,"
+        "SELECT header, body, filename,"
         " 1 - (embedding <=> %s::vector) AS score"
         " FROM documents"
         " WHERE workspace = %s"

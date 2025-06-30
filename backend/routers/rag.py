@@ -3,7 +3,7 @@ from fastapi import Body, HTTPException
 from app.config import settings
 import requests
 from fastapi import APIRouter
-from utils.helpers import get_conn, encode_query, count_tokens
+from utils.helpers import get_conn,count_tokens
 from services.search_service import (
     keyword_search as util_keyword_search,
     keyword_search_workspace,
@@ -94,7 +94,7 @@ def rag(
         )
         resp.raise_for_status()
     except requests.exceptions.RequestException as e:
-        raise HTTPException(status_code=500, detail=f"Gemini API hiba: {e}")
+        raise HTTPException(status_code=500, detail=f"Gemini API error: {e}")
 
     data = resp.json()
     print(data)
@@ -116,11 +116,9 @@ def rag(
     top_k:           int   = Body(10),
     score_threshold: float = Body(0.0),
 ):
-    if not (filename or workspace):
-        raise HTTPException(400, "Adj meg filename-t vagy workspace-et!")
     mode = mode.lower()
     if mode not in ("keyword", "embedding", "hybrid"):
-        raise HTTPException(400, "Érvénytelen mode")
+        raise HTTPException(400, "Invalid search mode")
     conn = get_conn()
     try:
         if mode == "keyword":

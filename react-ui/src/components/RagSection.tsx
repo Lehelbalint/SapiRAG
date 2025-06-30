@@ -33,8 +33,18 @@ const RagSection: React.FC<Props> = (p) => {
 
   const handleAsk = () =>
     runWithLoader(async () => {
-      if (!question) return;
-      if (searchScope === "file" && !uploadedFilename) return;
+      if (!question) {
+        alert("Please enter the question");
+        return;
+      }
+      if (!selectedBucket) {
+        alert("Select a workspace!");
+        return;
+      }
+      if (searchScope === "file" && !uploadedFilename) {
+        alert("Select a file!");
+        return;
+      }
       const ws = selectedBucket.replace("workspace-", "");
       setAnswer(await askRag(question, ragMode, ws, searchScope, uploadedFilename));
     }, "RAG answering…");
@@ -67,7 +77,7 @@ const RagSection: React.FC<Props> = (p) => {
       </div>
 
       <button onClick={handleAsk} style={primaryButtonStyle}>
-        <HelpOutline/>
+        <HelpOutline />
         Ask
       </button>
 
@@ -80,9 +90,8 @@ const RagSection: React.FC<Props> = (p) => {
   );
 };
 
-/* stílusok */
 const sectionStyle = {
-    display: 'flex',
+  display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
   marginTop: 24,
@@ -106,9 +115,9 @@ const textAreaStyle = {
   marginBottom: 12,
 } as const;
 const primaryButtonStyle = {
-    display: 'flex',
-    alignItem: 'center',
-    gap: 2,
+  display: 'flex',
+  alignItem: 'center',
+  gap: 2,
   border: "none",
   borderRadius: 6,
   padding: "10px 18px",

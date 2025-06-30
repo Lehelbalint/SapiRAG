@@ -1,4 +1,5 @@
 export type SearchResult = {
+  filename: string;
   header: string;
   body: string;
   score?: number;

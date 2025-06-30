@@ -131,11 +131,11 @@ const WorkspaceSection: React.FC<Props> = (props) => {
 
       <div style={buttonRowStyle}>
         <button onClick={handleCreateBucket} style={primaryButtonStyle}>
-        <AddIcon fontSize="small" />
-        Create workspace
+          <AddIcon fontSize="small" />
+          Create workspace
         </button>
         <button onClick={handleDeleteWorkspace} style={dangerButtonStyle}>
-        <DeleteOutlineIcon fontSize="small" />
+          <DeleteOutlineIcon fontSize="small" />
           Delete workspace
         </button>
         {selectedPdf && (
@@ -200,8 +200,6 @@ const primaryButtonStyle = {
   background: palette.primary,
   color: "#fff",
 };
-const dangerButtonStyle = { ...primaryButtonStyle, background: palette.danger,   display: 'flex', };
-
-
+const dangerButtonStyle = { ...primaryButtonStyle, background: palette.danger, display: 'flex', };
 
 export default WorkspaceSection;

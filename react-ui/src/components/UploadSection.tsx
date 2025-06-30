@@ -28,7 +28,7 @@ const UploadSection: React.FC<Props> = ({
       const ws = selectedBucket.replace("workspace-", "");
       const data = await uploadPdf(pdfFile, ws);
       setUploadedFilename(data.filename);
-      setMsg(`✅ Uploaded: ${data.filename}`);
+      setMsg(`Uploaded: ${data.filename}`);
 
       const form = new FormData();
       form.append("filename", data.filename);
@@ -44,25 +44,25 @@ const UploadSection: React.FC<Props> = ({
   return (
     <section style={sectionStyle}>
       <h2 style={headerStyle}>Upload PDF</h2>
-     <div style={{display: 'flex',flexDirection: 'column', alignItems: 'center'}}>
-      <input
-        type="file"
-        accept="application/pdf"
-        onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
-        style={{ marginBottom: 12, marginLeft:80 }}
-      />
-      <button onClick={handleUpload} style={primaryButtonStyle}>
-        <DriveFolderUploadIcon/>
-         Upload
-      </button>
-      <p style={{ marginTop: 8, color: palette.subText }}>{msg}</p>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <input
+          type="file"
+          accept="application/pdf"
+          onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
+          style={{ marginBottom: 12, marginLeft: 80 }}
+        />
+        <button onClick={handleUpload} style={primaryButtonStyle}>
+          <DriveFolderUploadIcon />
+          Upload
+        </button>
+        <p style={{ marginTop: 8, color: palette.subText }}>{msg}</p>
       </div>
     </section>
   );
 };
 
 const sectionStyle = {
-    display: 'flex',
+  display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
   marginTop: 24,

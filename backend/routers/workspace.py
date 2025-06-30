@@ -30,7 +30,7 @@ def list_workspace_pdfs(workspace: str = Query(...)):
 
     bucket = f"workspace-{workspace}"
     if not _client.bucket_exists(bucket):
-        raise HTTPException(status_code=404, detail=f"Bucket '{bucket}' nem létezik")
+        raise HTTPException(status_code=404, detail=f"Bucket '{bucket}' doesn't exists")
 
     pdfs = list_pdfs(bucket)
     return {"pdfs": pdfs}

@@ -16,36 +16,25 @@ import ResultsSection from "./components/ResultSection";
 import { palette } from "./colors";
 
 const App = () => {
-  /* ---------- Loader ---------- */
   const { loading, loadingText, runWithLoader } = useLoader();
-
-  /* ---------- Workspace state ---------- */
   const [buckets, setBuckets] = useState<string[]>([]);
   const [selectedBucket, setSelectedBucket] = useState("");
   const [searchScope, setSearchScope] = useState<SearchScope>("file");
-
-  /* ---------- PDF state ---------- */
   const [pdfFiles, setPdfFiles] = useState<string[]>([]);
   const [selectedPdf, setSelectedPdf] = useState("");
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [uploadedFilename, setUploadedFilename] = useState("");
-
-  /* ---------- Search state ---------- */
   const [searchType, setSearchType] = useState<SearchType>("keyword");
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
-
-  /* ---------- RAG state ---------- */
   const [ragMode, setRagMode] = useState<RAGMode>("embedding");
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
 
-  /* ---------- Init ---------- */
   useEffect(() => {
     runWithLoader(async () => setBuckets(await getBuckets()), "Bucketek betöltése…");
   }, []);
 
-  /* ---------- PDF list frissítés ---------- */
   useEffect(() => {
     if (!selectedBucket) {
       setPdfFiles([]);

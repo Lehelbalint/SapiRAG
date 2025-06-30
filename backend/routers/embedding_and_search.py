@@ -53,48 +53,46 @@ def keyword_search_endpoint(
     query: str = Query(...),
     top_k: int = Query(10),
     filename: Optional[str] = Query(None),
-    workspace: str = Query(...),
-):
+    workspace: str = Query(...),):
+    print(workspace)
     conn = get_conn()
     try:
         if filename:
-            rows = util_keyword_search(conn, query, filename, top_k)
+            rows = util_keyword_search(conn, query, workspace, filename, top_k)
         else:
             rows = keyword_search_workspace(conn, query, workspace, top_k)
     finally:
         conn.close()
-    return {"matches": [{"header": h, "body": b, "rank": r} for h, b, r in rows]}
+    return {"matches": [{"header": h, "body": b, "filename": f, "rank": r}for  h, b,f, r in rows]}
 
 @router.post("/embedding-search")
 def embedding_search_endpoint(
     query: str = Body(...),
     top_k: int = Body(10),
     filename: Optional[str] = Body(None),
-    workspace: str = Body(...),
-):
+    workspace: str = Body(...),):
     conn = get_conn()
     try:
         if filename:
-            rows = util_embedding_search(conn, query, filename, top_k)
+            rows = util_embedding_search(conn, query, workspace, filename, top_k)
         else:
             rows = embedding_search_workspace(conn, query, workspace, top_k)
     finally:
         conn.close()
-    return {"matches": [{"header": h, "body": b, "rank": r} for h, b, r in rows]}
+    return {"matches": [{"header": h, "body": b, "filename": f, "rank": r}for  h, b,f, r in rows]}
 
 @router.post("/search-hybrid")
 def hybrid_search_endpoint(
     query: str = Body(...),
     top_k: int = Body(10),
     filename: Optional[str] = Body(None),
-    workspace: str = Body(...),
-):
+    workspace: str = Body(...),):
     conn = get_conn()
     try:
         if filename:
-            rows = util_hybrid_search(conn, query, filename, top_k)
+            rows = util_hybrid_search(conn, query, workspace, filename, top_k)
         else:
             rows = hybrid_search_workspace(conn, query, workspace, top_k)
     finally:
         conn.close()
-    return {"matches": [{"header": h, "body": b, "rank": r} for h, b, r in rows]}
+    return {"matches": [{"header": h, "body": b, "filename": f, "rank": r}for  h, b,f, r in rows]}

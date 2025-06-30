@@ -31,7 +31,18 @@ const SearchSection: React.FC<Props> = (props) => {
 
   const handleSearch = () =>
     runWithLoader(async () => {
-      if (!query || (searchScope === "file" && !uploadedFilename)) return;
+      if (!query) {
+        alert("Please enter the search query");
+        return;
+      }
+      if (!selectedBucket) {
+        alert("Select a workspace!");
+        return;
+      }
+      if (searchScope === "file" && !uploadedFilename) {
+        alert("Select a file!");
+        return;
+      }
       const ws = selectedBucket.replace("workspace-", "");
       const matches = await unifiedSearch(
         searchType,
@@ -56,7 +67,7 @@ const SearchSection: React.FC<Props> = (props) => {
         rows={3}
         style={textAreaStyle}
       />
-            <div style={radioGroupStyle}>
+      <div style={radioGroupStyle}>
         {(["keyword", "embedding", "hybrid"] as SearchType[]).map((v) => (
           <label key={v} style={radioLabelStyle}>
             <input
@@ -71,14 +82,14 @@ const SearchSection: React.FC<Props> = (props) => {
       </div>
 
       <button onClick={handleSearch} style={primaryButtonStyle}>
-        <SearchIcon/> Search
+        <SearchIcon /> Search
       </button>
     </section>
   );
 };
 
 const sectionStyle = {
-    display: 'flex',
+  display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
   marginTop: 24,

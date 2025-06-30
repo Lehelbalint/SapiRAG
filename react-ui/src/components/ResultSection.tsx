@@ -9,8 +9,12 @@ const ResultsSection: React.FC<Props> = ({ results }) => (
     <h2 style={headerStyle}>Results</h2>
     {results.map((r, i) => (
       <div key={i} style={cardStyle}>
-        <strong>{r.header}</strong>
-        <p>{r.body}</p>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <strong>{r.filename} - {r.header}</strong>
+        </div>
+        <p>
+          {r.body}
+        </p>
         <div style={metaRow}>
           {r.rank !== undefined && (
             <span style={badgeStyle}>rank&nbsp;{r.rank.toFixed(3)}</span>
@@ -24,7 +28,6 @@ const ResultsSection: React.FC<Props> = ({ results }) => (
   </section>
 );
 
-/* stílusok */
 const sectionStyle = {
   marginTop: 24,
   background: palette.cardBg,
