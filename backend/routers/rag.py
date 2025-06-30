@@ -36,31 +36,33 @@ def rag(
     try:
         if mode == "keyword":
             rows = (
-                util_keyword_search(conn, question, filename, top_k)
+                util_keyword_search(conn, question, workspace, filename, top_k)
                 if filename
                 else keyword_search_workspace(conn, question, workspace, top_k)
             )
+            print(rows)
         elif mode == "hybrid":
             rows = (
-                util_hybrid_search(conn, question, filename, top_k)
+                util_hybrid_search(conn, question, workspace, filename, top_k)
                 if filename
                 else hybrid_search_workspace(conn, question, workspace, top_k)
             )
         else:
             rows = (
-                util_embedding_search(conn, question, filename, top_k)
+                util_embedding_search(conn, question, workspace, filename, top_k)
                 if filename
                 else embedding_search_workspace(conn, question, workspace, top_k)
             )
+
     finally:
         conn.close()
     if mode == "embedding":
-        filtered = [(h,b,s) for h,b,s in rows if s >= score_threshold][:4]
+        filtered = [(h, b, f, s) for h, b, f, s in rows if s >= score_threshold][:4]
     else:
         filtered = rows[:4]
 
     context = ""
-    for header, body, _ in filtered:
+    for header, body, filename, score in filtered:
         snippet = f"[{header}] {body}\n\n"
         if count_tokens(context + snippet) > 3000:
             break

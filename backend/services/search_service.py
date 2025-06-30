@@ -55,22 +55,23 @@ def embedding_search(
 def hybrid_search(
     conn: PGConnection,
     query: str,
-    workpace: str,
+    workspace: str,
     filename: str,
     top_k: int = 15
 ) -> List[Tuple[str, str,str, float]]:
-    vec_results = embedding_search(conn, query, filename, workpace, top_k)
-    kw_results = keyword_search(conn, query, filename, workpace, top_k)
+    vec_results = embedding_search(conn, query, workspace, filename , top_k)
+    kw_results = keyword_search(conn, query,  workspace, filename, top_k)
 
-    candidates = { (h, b): score for h, b, score in vec_results + kw_results }
+    candidates = { (h, b, f): score for h, b, f, score in vec_results + kw_results }
 
-    texts = [f"{h}\n{b}" for (h, b) in candidates.keys()]
+    texts = [f"{h}\n{b}" for (h, b, f) in candidates.keys()]
     rerank_scores = reranker.predict([(query, t) for t in texts])
 
     combined = list(zip(candidates.items(), rerank_scores))
     combined.sort(key=lambda x: x[1], reverse=True)
 
-    return [ (h, b, float(score)) for ((h, b), _), score in combined[:top_k] ]
+    return [ (h, b, f, float(score))
+             for ((h, b, f), _), score in combined[:top_k] ]
 
 
 def keyword_search_workspace(
@@ -129,13 +130,16 @@ def hybrid_search_workspace(
     kw_results = keyword_search_workspace(conn, query, workspace, top_k)
     emb_results = embedding_search_workspace(conn, query, workspace, top_k)
 
-    merged = { (h, b): score for h, b, score in kw_results + emb_results }
-    sorted_results = sorted(
-        [(h, b, score) for (h, b), score in merged.items()],
-        key=lambda x: x[2], reverse=True
-    )
+    candidates = { (h, b, f): score for h, b, f, score in emb_results + kw_results }
 
-    return sorted_results[:top_k]
+    texts = [f"{h}\n{b}" for (h, b, f) in candidates.keys()]
+    rerank_scores = reranker.predict([(query, t) for t in texts])
+
+    combined = list(zip(candidates.items(), rerank_scores))
+    combined.sort(key=lambda x: x[1], reverse=True)
+
+    return [ (h, b, f, float(score))
+             for ((h, b, f), _), score in combined[:top_k] ]
 
 
 def _execute_query(
